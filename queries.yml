@@ -1,0 +1,192 @@
+people: |
+  SELECT
+    -- This is pretty much useless since CrunchBase has moved to UUIDs.
+    obj.entity_id AS id,
+
+    'Person' AS type,
+
+    obj.logo_url AS profile_image_url,
+
+    person.first_name AS first_name,
+    person.last_name AS last_name,
+
+    obj.name AS name,
+
+    obj.homepage_url AS homepage_url,
+
+    -- This is based on a slug, so it's how we'll map to our exisiting dataset.
+    concat('https://www.crunchbase.com', obj.permalink) AS crunchbase_url,
+
+    -- CrunchBase didn't track Facebook or LinkedIn prior to December 2013.
+    NULL AS facebook_url,
+    NULL AS linkedin_url,
+
+    (CASE WHEN obj.twitter_username IS NOT NULL THEN
+      concat('https://twitter.com/', obj.twitter_username)
+    ELSE
+      NULL
+    END) AS twitter_url,
+
+    -- This is markdown. Make sure to convert to plaintext.
+    obj.overview AS bio,
+
+    obj.created_at AS created_at,
+    obj.updated_at AS updated_at
+
+  FROM cb_objects AS obj
+
+  INNER JOIN cb_people person
+          ON person.object_id = obj.id
+
+  WHERE entity_type='Person'
+
+organizations: |
+  SELECT
+    -- This is pretty much useless since CrunchBase has moved to UUIDs.
+    obj.entity_id AS id,
+
+    'Organization' AS type,
+
+    obj.logo_url AS profile_image_url,
+
+    obj.name AS name,
+
+    obj.founded_at AS founded_at,
+    obj.closed_at AS closed_at,
+
+    obj.country_code AS country_code,
+    obj.state_code AS state_code,
+    obj.city AS city,
+    obj.region AS region,
+
+    obj.homepage_url AS homepage_url,
+
+    -- This is based on a slug, so it's how we'll map to our exisiting dataset.
+    concat('https://www.crunchbase.com', REPLACE(obj.permalink, 'financial-organization', 'company')) AS crunchbase_url,
+
+    -- CrunchBase didn't track Facebook or LinkedIn prior to December 2013.
+    NULL AS facebook_url,
+    NULL AS linkedin_url,
+
+    (CASE WHEN obj.twitter_username IS NOT NULL THEN
+      concat('https://twitter.com/', obj.twitter_username)
+    ELSE
+      NULL
+    END) AS twitter_url,
+
+    -- This is markdown. Make sure to convert to plaintext.
+    obj.short_description AS brief,
+    obj.overview AS description,
+
+    obj.created_at AS created_at,
+    obj.updated_at AS updated_at
+
+  FROM cb_objects AS obj
+
+  WHERE entity_type = 'Company' OR entity_type = 'FinancialOrg'
+
+relationships: |
+
+  SELECT
+    relationship.id,
+
+    concat('https://www.crunchbase.com', person.permalink) AS person_crunchbase_url,
+    concat('https://www.crunchbase.com', REPLACE(organization.permalink, 'financial-organization', 'company')) AS organization_crunchbase_url,
+
+    relationship.start_at,
+    relationship.end_at,
+
+    relationship.title,
+
+    relationship.created_at,
+    relationship.updated_at
+
+  FROM cb_relationships AS relationship
+
+  INNER JOIN cb_objects person ON person.id = relationship.person_object_id
+  INNER JOIN cb_objects organization ON organization.id = relationship.relationship_object_id
+
+fundraises: |
+  SELECT
+
+    fundraise.id,
+
+    concat('https://www.crunchbase.com', REPLACE(organization.permalink, 'financial-organization', 'company')) AS organization_crunchbase_url,
+
+    fundraise.funded_at,
+    fundraise.funding_round_type,
+    fundraise.funding_round_code,
+    fundraise.raised_amount,
+    fundraise.raised_currency_code,
+    fundraise.raised_amount_usd,
+    fundraise.pre_money_valuation,
+    fundraise.pre_money_currency_code,
+    fundraise.pre_money_valuation_usd,
+    fundraise.post_money_valuation,
+    fundraise.post_money_currency_code,
+    fundraise.post_money_valuation_usd,
+    fundraise.source_url,
+    fundraise.source_description,
+    fundraise.created_at,
+    fundraise.updated_at
+
+  FROM cb_funding_rounds AS fundraise
+
+  INNER JOIN cb_objects organization ON organization.id = fundraise.object_id
+
+investments: |
+  SELECT
+
+    investment.id,
+
+    investment.funding_round_id AS fundraise_id,
+
+    fundraise.funding_round_type,
+    fundraise.funding_round_code,
+
+    concat('https://www.crunchbase.com', REPLACE(investor.permalink, 'financial-organization', 'company')) AS investor_crunchbase_url,
+    concat('https://www.crunchbase.com', REPLACE(funded.permalink, 'financial-organization', 'company')) AS funded_crunchbase_url,
+
+    investment.created_at,
+    investment.updated_at
+
+  FROM cb_investments AS investment
+
+  INNER JOIN cb_funding_rounds fundraise ON fundraise.id = investment.funding_round_id
+
+  INNER JOIN cb_objects investor ON investor.id = investment.investor_object_id
+  INNER JOIN cb_objects funded ON funded.id = investment.funded_object_id
+
+acquisitions: |
+  SELECT
+    acquisition.id,
+    concat('https://www.crunchbase.com', REPLACE(acquiring.permalink, 'financial-organization', 'company')) AS acquiring_crunchbase_url,
+    concat('https://www.crunchbase.com', REPLACE(acquired.permalink, 'financial-organization', 'company')) AS acquired_crunchbase_url,
+    acquisition.term_code,
+    acquisition.price_amount,
+    acquisition.price_currency_code,
+    acquisition.acquired_at,
+    acquisition.source_url,
+    acquisition.source_description,
+    acquisition.created_at,
+    acquisition.updated_at
+  FROM cb_acquisitions AS acquisition
+  INNER JOIN cb_objects acquiring ON acquiring.id = acquisition.acquiring_object_id
+  INNER JOIN cb_objects acquired ON acquired.id = acquisition.acquired_object_id
+
+ipos: |
+  SELECT
+    ipo.id AS id,
+    concat('https://www.crunchbase.com', REPLACE(organization.permalink, 'financial-organization', 'company')) AS organization_crunchbase_url,
+    ipo.valuation_amount,
+    ipo.valuation_currency_code,
+    ipo.raised_amount,
+    ipo.raised_currency_code,
+    ipo.public_at,
+    ipo.stock_symbol,
+    ipo.source_url,
+    ipo.source_description,
+    ipo.created_at,
+    ipo.updated_at
+  FROM cb_ipos AS ipo
+  INNER JOIN cb_objects organization ON organization.id = ipo.object_id
